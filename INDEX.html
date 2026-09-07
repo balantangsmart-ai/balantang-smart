@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Balantang Smart - Kelurahan Digital</title>
+
+<!-- Firebase SDK -->  
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<!-- Leaflet CSS untuk Peta -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: #f4f7fb; color: #333; line-height: 1.6; overflow-x: hidden; }
+  /* PENCEGAH HORIZONTAL SCROLL DI MOBILE */
+html, body {
+  overflow-x: hidden !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+}
+
+/* Pastikan semua section tidak melebihi lebar layar */
+section, .navbar, .hero, .stats, footer {
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+}
+
+/* Navbar mobile - pastikan menu wrap dengan baik */
+@media(max-width: 768px) {
+  .navbar {
+    flex-wrap: wrap;
+    padding: 10px 15px !important;
+  }
+  
+  .navbar h1 {
+    font-size: 1rem !important;
+    flex: 1 1 100%;
+    margin-bottom: 10px;
+  }
+  
+  .navbar nav {
+    flex-wrap: wrap;
+    gap: 8px !important;
+    width: 100%;
+  }
+  
+  .navbar nav a {
+    font-size: 0.85rem !important;
+    padding: 5px 8px;
+  }
+  
+  /* Menu toggle button */
+  .menu-toggle {
+    display: block !important;
+    position: absolute;
+    top: 15px;
+    right: 15px;
+  }
+  
+  /* Sembunyikan menu default di mobile, tampilkan saat toggle */
+  .navbar nav {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    background: rgba(30, 60, 114, 0.95);
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 10px;
+  }
+  
+  .navbar nav.active {
+    display: flex !important;
+  }
+  
+  .navbar nav a {
+    width: 100%;
+    text-align: center;
+    padding: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+}
+  a { text-decoration: none; color: inherit; }
+  img { max-width: 100%; height: auto; display: block; }
+
+  .navbar { background: linear-gradient(90deg, #1e3c72, #2a5298); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+  .navbar h1 { font-size: 1.1rem; display: flex; align-items: center; flex-wrap: wrap; }
+  .navbar nav { display: flex; gap: 15px; }
+  .navbar nav a { font-weight: 500; transition: 0.3s; font-size: 0.9rem; }
+  .navbar nav a:hover { color: #ffd700; }
+  .sync-indicator { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.7rem; margin-left: 8px; font-weight: normal; }
+  .sync-online { background: #27ae60; }
+  .sync-offline { background: #e67e22; }
+  .menu-toggle { display: none; background: none; border: none; color: white; font-size: 1.8rem; cursor: pointer; padding: 5px; }
+
+  .hero { background: linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url('https://res.cloudinary.com/isqzubgm/image/upload/v1788686402/header.png'); background-size: cover; background-position: center; background-repeat: no-repeat; color: white; padding: 60px 20px; text-align: center; min-height: 350px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+  .hero h2 { font-size: 1.6rem; margin-bottom: 15px; text-shadow: 2px 2px 8px rgba(0,0,0,0.5); }
+  .hero p { font-size: 0.95rem; margin-bottom: 25px; text-shadow: 1px 1px 4px rgba(0,0,0,0.5); }
+  .hero .btn-group { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .hero .btn-group a { display: inline-block; padding: 12px 20px; background: rgba(255, 215, 0, 0.95); color: #1e3c72; border-radius: 30px; font-weight: 600; transition: 0.3s; font-size: 0.9rem; }
+
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 20px 15px; max-width: 1100px; margin: -30px auto 0; position: relative; z-index: 2; }
+  .stat-card { background: white; padding: 15px 10px; border-radius: 15px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.08); }
+  .stat-card h3 { color: #2a5298; font-size: 1.4rem; }
+  .stat-card p { color: #666; font-size: 0.75rem; }
+
+  section { padding: 40px 20px; max-width: 1200px; margin: 0 auto; }
+  section h2 { text-align: center; font-size: 1.5rem; color: #1e3c72; margin-bottom: 10px; }
+  section .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 0.9rem; }
+
+  .vm-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+  .vm-card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.08); }
+  .vm-card h3 { color: #2a5298; margin-bottom: 10px; font-size: 1.1rem; }
+  .vm-card p { font-size: 0.9rem; line-height: 1.6; }
+
+  .perangkat-section { padding: 40px 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); }
+  .perangkat-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 20px; }
+  .perangkat-photo-wrapper { 
+  border-radius: 15px; 
+  overflow: hidden; 
+  box-shadow: 0 10px 30px rgba(30, 60, 114, 0.2); 
+  background: white;
+  min-height: auto;
+}
+  .perangkat-photo-wrapper img { width: 100%; height: auto; object-fit: cover; }
+  .perangkat-info { padding: 15px; }
+  .perangkat-info h3 { color: #1e3c72; font-size: 1.3rem; margin-bottom: 10px; }
+  .perangkat-info p { color: #555; line-height: 1.6; margin-bottom: 10px; font-size: 0.9rem; }
+  .perangkat-info .highlight { background: white; padding: 12px 15px; border-left: 4px solid #2a5298; border-radius: 8px; margin: 15px 0; font-style: italic; color: #1e3c72; font-size: 0.9rem; }
+  .perangkat-info .btn-primary { display: inline-block; margin-top: 10px; padding: 10px 20px; background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; border-radius: 30px; font-weight: 600; font-size: 0.9rem; }
+
+  .gallery-controls { max-width: 900px; margin: 0 auto 20px; display: flex; flex-direction: column; gap: 10px; }
+  .search-box { display: flex; gap: 10px; align-items: center; background: white; padding: 10px 15px; border-radius: 30px; box-shadow: 0 3px 15px rgba(0,0,0,0.08); }
+  .search-box input { flex: 1; border: none; outline: none; font-size: 0.9rem; padding: 8px; }
+  .search-box .clear-btn { background: none; border: none; color: #888; cursor: pointer; font-size: 1.2rem; }
+  .gallery-filter { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .filter-btn { padding: 8px 15px; background: white; border: 2px solid #2a5298; color: #2a5298; border-radius: 25px; cursor: pointer; font-weight: 500; font-size: 0.85rem; }
+  .filter-btn.active, .filter-btn:hover { background: #2a5298; color: white; }
+  .filter-group { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .filter-group-label { font-size: 0.85rem; color: #666; align-self: center; margin-right: 5px; }
+
+  .gallery-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+  .gallery-item { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.08); cursor: pointer; }
+  .gallery-thumb { position: relative; width: 100%; height: 180px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; }
+  .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .gallery-thumb .video-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.5rem; color: white; text-shadow: 0 0 10px rgba(0,0,0,0.5); }
+  .gallery-badge { position: absolute; top: 10px; right: 10px; background: rgba(42, 82, 152, 0.9); color: white; padding: 5px 10px; border-radius: 15px; font-size: 0.7rem; font-weight: 600; }
+  .gallery-category-badge { position: absolute; top: 10px; left: 10px; background: rgba(255, 215, 0, 0.95); color: #1e3c72; padding: 5px 10px; border-radius: 15px; font-size: 0.7rem; font-weight: 600; }
+  .gallery-info { padding: 12px; }
+  .gallery-info h4 { color: #1e3c72; margin-bottom: 5px; font-size: 1rem; }
+  .gallery-info small { color: #888; font-size: 0.8rem; }
+  .gallery-info p { color: #555; font-size: 0.85rem; margin-top: 5px; }
+  .gallery-info .category-tag { display: inline-block; background: #eef3fb; color: #2a5298; padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; margin-top: 5px; }
+
+  .news-grid, .pegawai-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+  .news-card, .pegawai-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.08); }
+  .news-card img { width: 100%; height: 150px; object-fit: cover; background: #f0f0f0; }
+  .news-card .content { padding: 15px; }
+  .news-card h4 { color: #1e3c72; margin-bottom: 5px; font-size: 1rem; }
+  .news-card small { color: #888; font-size: 0.8rem; }
+  .news-card p { font-size: 0.85rem; color: #555; margin-top: 5px; }
+  
+  .pegawai-card { text-align: center; padding: 20px 15px; }
+  .pegawai-avatar-wrapper { position: relative; width: 80px; height: 80px; margin: 0 auto 10px; }
+  .pegawai-card .avatar, .pegawai-foto { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; overflow: hidden; border: 3px solid #2a5298; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+  .pegawai-foto { object-fit: cover; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .pegawai-foto.error { display: none !important; }
+  .pegawai-card h4 { color: #1e3c72; margin-bottom: 5px; font-size: 0.95rem; }
+  .pegawai-card p { color: #666; font-size: 0.8rem; margin-bottom: 3px; }
+  .pegawai-card p strong { color: #1e3c72; }
+
+  .kontak-card { background: white; padding: 20px; border-radius: 15px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.08); }
+  .kontak-card p { font-size: 0.9rem; margin-bottom: 8px; }
+
+  /* SAMBUTAN LURAH */
+  .sambutan-section { padding: 40px 20px; background: white; }
+  .sambutan-container { max-width: 1100px; margin: 0 auto; display: flex; gap: 40px; align-items: flex-start; }
+  .sambutan-foto-wrapper { flex-shrink: 0; }
+  .sambutan-foto {
+    width: 320px; height: 320px; border-radius: 50%;
+    object-fit: cover;
+    object-position: center 15%;
+    border: 5px solid #2a5298;
+    box-shadow: 0 10px 30px rgba(30, 60, 114, 0.3);
+  }
+  .sambutan-foto-placeholder {
+    width: 320px; height: 320px; border-radius: 50%;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 6rem; font-weight: bold;
+    border: 5px solid #2a5298;
+    box-shadow: 0 10px 30px rgba(30, 60, 114, 0.3);
+  }
+  .sambutan-konten { flex: 1; max-height: 500px; overflow-y: auto; padding-right: 20px; }
+  .sambutan-konten::-webkit-scrollbar { width: 8px; }
+  .sambutan-konten::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+  .sambutan-konten::-webkit-scrollbar-thumb { background: #2a5298; border-radius: 10px; }
+  .sambutan-konten h2 { color: #1e3c72; font-size: 2rem; margin-bottom: 10px; }
+  .sambutan-konten h3 { color: #2a5298; font-size: 1.3rem; margin-bottom: 5px; }
+  .sambutan-konten .jabatan { color: #666; font-size: 0.95rem; font-weight: 600; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
+  .sambutan-konten p { color: #333; font-size: 1rem; line-height: 1.8; margin-bottom: 15px; text-align: justify; }
+
+  /* PETA KELURAHAN */
+  .peta-section { padding: 40px 20px; background: #f8f9fa; }
+  .peta-container { max-width: 1200px; margin: 0 auto; }
+  .peta-header { margin-bottom: 20px; text-align: center; }
+  .peta-header h2 { color: #1e3c72; font-size: 2rem; margin-bottom: 10px; }
+  .peta-header p { color: #666; font-size: 0.95rem; }
+  #map { 
+    height: 500px; 
+    width: 100%; 
+    border-radius: 15px; 
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    z-index: 1;
+  }
+  .leaflet-popup-content-wrapper { border-radius: 10px; }
+  .leaflet-popup-content { margin: 10px 15px; font-size: 0.9rem; }
+  .custom-marker { 
+    background: #e74c3c; 
+    border: 3px solid white; 
+    border-radius: 50%; 
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  }
+
+  footer { background: #1e3c72; color: white; padding: 20px 15px; text-align: center; font-size: 0.85rem; }
+  footer a { color: #ffd700; display: block; margin: 5px 0; }
+
+  .empty-state { text-align: center; padding: 30px 20px; color: #888; grid-column: 1/-1; font-size: 0.9rem; }
+  .result-count { text-align: center; color: #666; font-size: 0.85rem; margin-bottom: 10px; }
+
+  /* MODAL BERITA - CSS (Versi Mobile-Friendly) */
+  .berita-modal {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.8); z-index: 2000; justify-content: center;
+    align-items: center; padding: 15px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  .berita-modal.active { display: flex !important; }
+  .berita-modal-content {
+    background: white; max-width: 800px; width: 100%; max-height: 90vh;
+    overflow-y: auto; border-radius: 15px; position: relative;
+    animation: modalSlideIn 0.3s ease; -webkit-overflow-scrolling: touch;
+  }
+  @keyframes modalSlideIn { from { opacity: 0; transform: translateY(-50px); } to { opacity: 1; transform: translateY(0); } }
+  
+  .berita-modal-close {
+    position: absolute; top: 15px; right: 15px; background: rgba(231, 76, 60, 0.9);
+    color: white; border: none; width: 40px; height: 40px; border-radius: 50%;
+    font-size: 1.5rem; cursor: pointer; z-index: 10; display: flex;
+    align-items: center; justify-content: center; min-width: 44px; min-height: 44px;
+    transition: 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  }
+  .berita-modal-close:hover { background: #c0392b; transform: scale(1.1); }
+  
+  .berita-modal-image { width: 100%; height: 300px; object-fit: cover; border-radius: 15px 15px 0 0; }
+  .berita-modal-body { padding: 20px; }
+  .berita-modal-date { color: #888; font-size: 0.85rem; margin-bottom: 10px; }
+  .berita-modal-title { color: #1e3c72; font-size: 1.5rem; margin-bottom: 15px; line-height: 1.3; }
+  .berita-modal-text { color: #333; font-size: 0.95rem; line-height: 1.7; white-space: pre-wrap; }
+
+  .news-card { cursor: pointer; -webkit-tap-highlight-color: rgba(30, 60, 114, 0.1); touch-action: manipulation; }
+  .news-card:active { transform: scale(0.98); opacity: 0.9; }
+
+  /* LIGHTBOX GALERI - CSS */
+  .lightbox {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; padding: 20px;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox-content { max-width: 95%; max-height: 90%; position: relative; }
+  .lightbox-content img, .lightbox-content iframe { max-width: 100%; max-height: 85vh; border-radius: 10px; }
+  .lightbox-content iframe { width: 90vw; height: 60vh; }
+  
+  /* Tombol X Merah untuk Galeri */
+  .lightbox-close {
+    position: absolute; top: -45px; right: 0; background: rgba(231, 76, 60, 0.9);
+    color: white; border: none; width: 45px; height: 45px; border-radius: 50%;
+    font-size: 28px; font-weight: bold; cursor: pointer; z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: 0.3s; line-height: 1;
+  }
+  .lightbox-close:hover { background: #c0392b; transform: scale(1.1); }
+  
+  .lightbox-caption { color: white; text-align: center; margin-top: 15px; font-size: 0.9rem; }
+  .lightbox-caption h3 { margin: 0 0 5px 0; font-size: 1.2rem; }
+  .lightbox-caption p { margin: 0; color: #ccc; }
+
+  /* Cegah seleksi teks yang bisa trigger navigasi */
+  .news-card { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .news-card img { pointer-events: none; -webkit-user-drag: none; }
+
+  /* DESKTOP */
+  @media(min-width: 769px) {
+    .navbar { padding: 15px 40px; }
+    .navbar h1 { font-size: 1.4rem; }
+    .navbar nav { gap: 20px; }
+    .navbar nav a { font-size: 1rem; }
+    .menu-toggle { display: none; }
+    .navbar nav { display: flex !important; }
+    .hero { padding: 100px 40px; min-height: 450px; }
+    .hero h2 { font-size: 2.5rem; }
+    .hero p { font-size: 1.2rem; }
+    .stats { grid-template-columns: repeat(4, 1fr); gap: 20px; padding: 40px; margin: -50px auto 0; }
+    .stat-card { padding: 25px; }
+    .stat-card h3 { font-size: 2rem; }
+    .stat-card p { font-size: 0.9rem; }
+    section { padding: 60px 40px; }
+    section h2 { font-size: 2rem; }
+    .vm-grid { grid-template-columns: 1fr 1fr; gap: 25px; }
+    .vm-card { padding: 30px; }
+    .vm-card h3 { font-size: 1.3rem; }
+    .vm-card p { font-size: 1rem; }
+    .perangkat-section { padding: 80px 40px; }
+    .perangkat-container { grid-template-columns: 1.2fr 1fr; gap: 40px; }
+    .perangkat-info h3 { font-size: 1.8rem; }
+    .perangkat-info p { font-size: 1rem; }
+    .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .gallery-thumb { height: 200px; }
+    .news-grid, .pegawai-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .news-card img { height: 180px; }
+    .pegawai-card .avatar, .pegawai-foto { width: 100px; height: 100px; font-size: 2.5rem; }
+    .pegawai-avatar-wrapper { width: 100px; height: 100px; }
+    .pegawai-card h4 { font-size: 1.1rem; }
+    .pegawai-card p { font-size: 0.9rem; }
+    footer { padding: 30px 40px; font-size: 1rem; }
+    footer a { display: inline; margin: 0 10px; }
+    .search-box { flex-direction: row; }
+  }
+
+  @media(max-width: 768px) {
+    .berita-modal { padding: 0; align-items: flex-end; }
+    .berita-modal-content { max-height: 95vh; border-radius: 20px 20px 0 0; animation: modalSlideUp 0.3s ease; }
+    @keyframes modalSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .berita-modal-image { height: 200px; border-radius: 20px 20px 0 0; }
+    .berita-modal-title { font-size: 1.2rem; }
+    .berita-modal-text { font-size: 0.9rem; }
+    .berita-modal-body { padding: 15px; }
+    
+    .sambutan-container { flex-direction: column; align-items: center; text-align: center; }
+    .sambutan-foto, .sambutan-foto-placeholder { width: 220px; height: 220px; font-size: 4rem; object-position: center 15%; }
+    .sambutan-konten { max-height: none; padding-right: 0; }
+    .sambutan-konten p { text-align: left; }
+    
+    #map { height: 350px; }
+    .peta-header h2 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="navbar" id="home">
+  <h1>🏛️ BALANTANG SMART <span id="syncIndicator" class="sync-indicator sync-offline">Offline</span></h1>
+  <button class="menu-toggle" onclick="toggleMenu()" aria-label="Menu">☰</button>
+  <nav id="navbarNav">
+    <a href="#home">Beranda</a>
+    <a href="#visi-misi">Visi Misi</a>
+    <a href="#gallery">Galeri</a>
+    <a href="#news">Berita</a>
+    <a href="#sambutan">Sambutan</a>
+    <a href="#pegawai">Aparat</a>
+    <a href="#peta">Peta</a>
+    <a href="#kontak">Kontak</a>
+  </nav>
+</div>
+
+<div class="hero">
+  <h2>🌟 Selamat Datang di Platform Digital Kelurahan Balantang</h2>
+  <p>Mewujudkan pelayanan masyarakat yang modern, transparan, dan berbasis teknologi</p>
+  <div class="btn-group">
+    <a href="#visi-misi">ℹ️ Tentang Kami</a>
+    <a href="#gallery">📸 Galeri Kegiatan</a>
+    <a href="#news">📰 Berita Terkini</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat-card"><h3 id="statPenduduk">5,000+</h3><p>Penduduk</p></div>
+  <div class="stat-card"><h3 id="statRT">12</h3><p>RT/RW</p></div>
+  <div class="stat-card"><h3 id="statPegawai">0</h3><p>Aparat</p></div>
+  <div class="stat-card"><h3 id="statLayanan">24/7</h3><p>Layanan Digital</p></div>
+</div>
+
+<section id="visi-misi">
+  <h2>🎯 Visi & Misi</h2>
+  <p class="subtitle">Arah Pembangunan Kelurahan</p>
+  <div class="vm-grid">
+    <div class="vm-card"><h3>VISI</h3><p id="visiText">Memuat visi...</p></div>
+    <div class="vm-card"><h3>MISI</h3><p id="misiText">Memuat misi...</p></div>
+  </div>
+</section>
+
+<section class="perangkat-section" id="perangkat">
+  <h2>️ Perangkat Kelurahan</h2>
+  <p class="subtitle">Tim Pengabdi Masyarakat Balantang</p>
+  <div class="perangkat-container">
+    <div class="perangkat-photo-wrapper">
+      <img src="https://res.cloudinary.com/isqzubgm/image/upload/v1788697970/ChatGPT_Image_Sep_6_2026_08_24_17_PM.png" alt="Perangkat Kelurahan Balantang" loading="lazy" onerror="this.style.display='none';">
+    </div>
+    <div class="perangkat-info">
+      <h3>Melayani dengan Hati</h3>
+      <p>Perangkat Kelurahan Balantang berkomitmen untuk memberikan pelayanan terbaik kepada masyarakat. Dengan semangat gotong royong dan integritas, kami siap mewujudkan Kelurahan Balantang yang maju, mandiri, dan sejahtera.</p>
+      <div class="highlight">"Pelayanan publik yang transparan, cepat, dan ramah adalah prioritas utama kami untuk masyarakat Balantang."</div>
+      <p>Kami percaya bahwa kemajuan kelurahan dimulai dari kolaborasi antara pemerintah dan masyarakat. Bersama, kita bangun Balantang yang lebih baik!</p>
+      <a href="#pegawai" class="btn-primary">👥 Lihat Struktur Organisasi</a>
+    </div>
+  </div>
+</section>
+
+<section id="gallery">
+  <h2>📸 Galeri Kegiatan</h2>
+  <p class="subtitle">Dokumentasi aktivitas pemerintah dan masyarakat Kelurahan Balantang</p>
+  <div class="gallery-controls">
+    <div class="search-box">
+      <span>🔍</span>
+      <input type="text" id="searchInput" placeholder="Cari kegiatan...">
+      <button class="clear-btn" onclick="clearSearch()" aria-label="Hapus pencarian">✕</button>
+    </div>
+    <div class="gallery-filter">
+      <button class="filter-btn active" data-filter="all">📋 Semua</button>
+      <button class="filter-btn" data-filter="foto">📷 Foto</button>
+      <button class="filter-btn" data-filter="video"> Video</button>
+    </div>
+    <div class="filter-group" id="categoryFilter">
+      <span class="filter-group-label">Kategori:</span>
+      <button class="filter-btn active" data-filter="all">Semua</button>
+    </div>
+  </div>
+  <div class="result-count" id="resultCount"></div>
+  <div class="gallery-grid" id="galleryGrid">
+    <div class="empty-state">Memuat galeri...</div>
+  </div>
+</section>
+
+<section id="news">
+  <h2>📰 BALANTANG NEWS</h2>
+  <p class="subtitle">Berita & Informasi Terkini</p>
+  <div class="news-grid" id="newsGrid">
+    <div class="empty-state">Memuat berita...</div>
+  </div>
+</section>
+
+<section id="pegawai">
+  <h2>👥 PROFIL APARAT KELURAHAN</h2>
+  <p class="subtitle">Struktur Organisasi & Tokoh Masyarakat</p>
+  <div class="pegawai-grid" id="pegawaiGrid">
+    <div class="empty-state">Memuat data...</div>
+  </div>
+</section>
+
+<section class="sambutan-section" id="sambutan">
+  <div class="sambutan-container">
+    <div class="sambutan-foto-wrapper" id="sambutanFotoWrapper">
+      <div class="sambutan-foto-placeholder">👤</div>
+    </div>
+    <div class="sambutan-konten">
+      <h2>Sambutan Lurah Balantang</h2>
+      <h3 id="sambutanNama">Nama Lurah</h3>
+      <p class="jabatan" id="sambutanJabatan">Lurah Balantang</p>
+      <div id="sambutanTeks">
+        <p>Memuat sambutan...</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="peta-section" id="peta">
+  <div class="peta-container">
+    <div class="peta-header">
+      <h2>🗺️ Peta Kelurahan Balantang</h2>
+      <p>Lokasi Kantor Kelurahan Balantang, Kecamatan Dolo Selatan, Kabupaten Sigi, Sulawesi Tengah</p>
+    </div>
+    <div id="map"></div>
+  </div>
+</section>
+
+<section id="kontak">
+  <h2>📞 HUBUNGI KAMI</h2>
+  <p class="subtitle">Kontak & Lokasi</p>
+  <div class="kontak-card" id="kontakCard">Memuat informasi kontak...</div>
+</section>
+
+<!-- MODAL BERITA (HANYA 1 INSTANSI) -->
+<div class="berita-modal" id="beritaModal" onclick="if(event.target === this) closeBeritaModal()">
+  <div class="berita-modal-content">
+    <button class="berita-modal-close" onclick="closeBeritaModal()">✕</button>
+    <img id="beritaModalImage" src="" alt="" class="berita-modal-image" style="display: none;">
+    <div class="berita-modal-body">
+      <div class="berita-modal-date" id="beritaModalDate"></div>
+      <h2 class="berita-modal-title" id="beritaModalTitle"></h2>
+      <div class="berita-modal-text" id="beritaModalText"></div>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX GALERI (ASLI, DENGAN TOMBOL X MERAH) -->
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-content">
+    <button class="lightbox-close" onclick="closeLightbox()" aria-label="Tutup">&times;</button>
+    <div id="lightboxMedia"></div>
+    <div class="lightbox-caption" id="lightboxCaption"></div>
+  </div>
+</div>
+
+<footer>
+  <h3>Balantang Smart</h3>
+  <p>Platform digital untuk pelayanan masyarakat Kelurahan Balantang.</p>
+  <p style="margin-top:10px;">
+    <a href="#home">Beranda</a> | <a href="#visi-misi">Visi Misi</a> | <a href="#gallery">Galeri</a> | <a href="#news">Berita</a>
+  </p>
+  <p style="margin-top:15px; opacity:0.8;">© 2026 Balantang Smart. All Rights Reserved. | <a href="admin.html">Login Admin</a></p>
+</footer>
+
+<!-- Leaflet JS untuk Peta -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ====== KONFIGURASI FIREBASE ======
+const firebaseConfig = {
+  apiKey: "AIzaSyAtat2xtBptqpkWu4qR9nKXbF71BcJSy6A",
+  authDomain: "balantang-smart.firebaseapp.com",
+  databaseURL: "https://balantang-smart-default-rtdb.firebaseio.com",
+  projectId: "balantang-smart",
+  storageBucket: "balantang-smart.appspot.com",
+  messagingSenderId: "940310052288",
+  appId: "1:940310052288:web:b5e3b0dcaedb4d5ac79c25",
+  measurementId: "G-CNTBME13MB"
+};
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+  console.log('✅ Firebase berhasil diinisialisasi');
+  
+  database.ref('.info/connected').on('value', (snapshot) => {
+    const indicator = document.getElementById('syncIndicator');
+    if (snapshot.val() === true) {
+      indicator.className = 'sync-indicator sync-online';
+      indicator.textContent = '🟢 Online';
+    } else {
+      indicator.className = 'sync-indicator sync-offline';
+      indicator.textContent = '🟠 Offline';
+    }
+  });
+  
+  window.toggleMenu = function() {
+    document.getElementById('navbarNav').classList.toggle('active');
+  };
+  document.querySelectorAll('.navbar nav a').forEach(link => {
+    link.addEventListener('click', () => document.getElementById('navbarNav').classList.remove('active'));
+  });
+
+  function isValidUrl(string) {
+    if (!string) return false;
+    try { new URL(string); return string.startsWith('http://') || string.startsWith('https://'); } catch (_) { return false; }
+  }
+
+  // --- LOAD DATA ---
+  database.ref('statistik').on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    if (data.penduduk) document.getElementById('statPenduduk').textContent = data.penduduk;
+    if (data.rt) document.getElementById('statRT').textContent = data.rt;
+    if (data.pegawai !== undefined) document.getElementById('statPegawai').textContent = data.pegawai;
+    if (data.layanan) document.getElementById('statLayanan').textContent = data.layanan;
+  });
+
+  database.ref('visiMisi').on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    document.getElementById('visiText').textContent = data.visi || 'Belum ada visi.';
+    document.getElementById('misiText').textContent = data.misi || 'Belum ada misi.';
+  });
+
+  database.ref('pegawai').on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    const pegawaiArray = Object.values(data);
+    const pegawaiGrid = document.getElementById('pegawaiGrid');
+    if (pegawaiArray.length === 0) {
+      pegawaiGrid.innerHTML = '<div class="empty-state">Belum ada data aparat.</div>';
+      return;
+    }
+    pegawaiGrid.innerHTML = pegawaiArray.map(p => {
+      const initial = (p.nama || '?').charAt(0).toUpperCase();
+      let avatarHTML = '';
+      const hasFoto = p.foto && p.foto.trim() !== '';
+      const isUrl = hasFoto && (p.foto.startsWith('http://') || p.foto.startsWith('https://'));
+      const isBase64 = hasFoto && p.foto.startsWith('data:image');
+      
+      if (isUrl || isBase64) {
+        avatarHTML = `<div class="pegawai-avatar-wrapper"><img src="${p.foto}" alt="${p.nama}" class="pegawai-foto" loading="lazy" onerror="this.classList.add('error'); if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" onload="if(this.nextElementSibling) this.nextElementSibling.style.display='none';"><div class="avatar" style="display:none;">${initial}</div></div>`;
+      } else {
+        avatarHTML = `<div class="pegawai-avatar-wrapper"><div class="avatar">${initial}</div></div>`;
+      }
+      return `<div class="pegawai-card">${avatarHTML}<h4>${p.nama || 'Nama tidak tersedia'}</h4><p><strong>${p.jabatan || '-'}</strong></p><p>${p.unit || ''}</p></div>`;
+    }).join('');
+  });
+
+  // --- BERITA ---
+  let beritaDataArray = [];
+  database.ref('berita').on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    const beritaArray = Object.values(data).reverse();
+    const newsGrid = document.getElementById('newsGrid');
+    if (beritaArray.length === 0) {
+      newsGrid.innerHTML = '<div class="empty-state">Belum ada berita.</div>';
+      return;
+    }
+    beritaDataArray = beritaArray;
+    newsGrid.innerHTML = beritaArray.map((b, index) => {
+      let gambarHTML = isValidUrl(b.gambar) ? `<img src="${b.gambar}" alt="${b.judul}" loading="lazy" onerror="this.style.display='none';">` : '';
+      return `<div class="news-card" onclick="openBeritaModal(${index})"><div class="content">${gambarHTML}<small>${b.tanggal || ''}</small><h4>${b.judul}</h4><p>${(b.isi || '').substring(0, 120)}${b.isi && b.isi.length > 120 ? '...' : ''}</p></div></div>`;
+    }).join('');
+  });
+
+  window.openBeritaModal = function(index) {
+    const berita = beritaDataArray[index];
+    if (!berita) return;
+    const modal = document.getElementById('beritaModal');
+    const image = document.getElementById('beritaModalImage');
+    if (isValidUrl(berita.gambar)) { image.src = berita.gambar; image.style.display = 'block'; } else { image.style.display = 'none'; }
+    document.getElementById('beritaModalDate').textContent = berita.tanggal ? ' ' + berita.tanggal : '';
+    document.getElementById('beritaModalTitle').textContent = berita.judul;
+    document.getElementById('beritaModalText').textContent = berita.isi || 'Tidak ada isi berita.';
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  };
+
+  window.closeBeritaModal = function() {
+    document.getElementById('beritaModal').classList.remove('active');
+    document.body.style.overflow = 'auto';
+  };
+
+  // --- SAMBUTAN LURAH ---
+  database.ref('sambutan').on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    
+    const fotoWrapper = document.getElementById('sambutanFotoWrapper');
+    if (data.foto && data.foto.trim() !== '') {
+      if (data.foto.startsWith('http://') || data.foto.startsWith('https://') || data.foto.startsWith('data:image')) {
+        fotoWrapper.innerHTML = `<img src="${data.foto}" alt="Lurah Balantang" class="sambutan-foto" onerror="this.outerHTML='<div class=\\'sambutan-foto-placeholder\\'></div>';">`;
+      } else {
+        fotoWrapper.innerHTML = `<div class="sambutan-foto-placeholder">👤</div>`;
+      }
+    } else {
+      fotoWrapper.innerHTML = `<div class="sambutan-foto-placeholder">👤</div>`;
+    }
+    
+    document.getElementById('sambutanNama').textContent = data.nama || 'Nama Lurah';
+    document.getElementById('sambutanJabatan').textContent = data.jabatan || 'Lurah Balantang';
+    document.getElementById('sambutanTeks').innerHTML = data.teks ? data.teks.split('\n').filter(p => p.trim() !== '').map(p => `<p>${p}</p>`).join('') : '<p>Belum ada sambutan.</p>';
+  });
+
+  // --- PETA KELURAHAN ---
+(function() {
+  // Koordinat untuk Kelurahan Balantang, Kec. Batui, Kab. Banggai
+  // ⚠️ Silakan konfirmasi koordinat yang tepat
+  const lat = -1.277894;
+  const lng = 122.559383;
+  
+  const map = L.map('map', { scrollWheelZoom: false }).setView([lat, lng], 15);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19
+  }).addTo(map);
+
+  const customIcon = L.divIcon({
+    className: 'custom-marker',
+    iconSize: [25, 25],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12]
+  });
+
+  L.marker([lat, lng], { icon: customIcon })
+    .addTo(map)
+    .bindPopup(`
+      <div style="text-align:center;">
+        <strong style="color:#1e3c72;">🏛️ Kantor Kelurahan Balantang</strong><br>
+        <small>Kec. Batui, Kab. Banggai</small><br>
+        <small>Sulawesi Tengah</small>
+      </div>
+    `)
+    .openPopup();
+
+  setTimeout(() => map.invalidateSize(), 500);
+})();
+
+  // --- KONTAK ---
+  database.ref('kontak').on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    document.getElementById('kontakCard').innerHTML = `<p>📍 ${data.alamat || 'Alamat belum diisi'}</p><p>📞 ${data.telepon || '-'}</p><p>✉️ ${data.email || '-'}</p>`;
+  });
+
+  // --- GALERI ---
+  let currentTypeFilter = 'all', currentCategoryFilter = 'all', currentSearch = '', galeriData = [];
+  database.ref('galeri').on('value', (snapshot) => {
+    galeriData = Object.values(snapshot.val() || {});
+    buildCategoryFilter(galeriData);
+    renderGaleri();
+  });
+
+  function buildCategoryFilter(galeri) {
+    const categories = [...new Set(galeri.map(g => g.kategori).filter(k => k))];
+    const container = document.getElementById('categoryFilter');
+    if (!container) return;
+    container.innerHTML = '<span class="filter-group-label">Kategori:</span><button class="filter-btn active" data-filter="all">Semua</button>' + categories.map(c => `<button class="filter-btn" data-filter="${c}">${c}</button>`).join('');
+    container.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCategoryFilter = btn.dataset.filter;
+        renderGaleri();
+      });
+    });
+  }
+
+  function renderGaleri() {
+    const galleryGrid = document.getElementById('galleryGrid');
+    const resultCount = document.getElementById('resultCount');
+    let data = galeriData;
+    if (currentTypeFilter !== 'all') data = data.filter(g => g.jenis === currentTypeFilter || g.type === currentTypeFilter);
+    if (currentCategoryFilter !== 'all') data = data.filter(g => g.kategori === currentCategoryFilter);
+    if (currentSearch) {
+      const q = currentSearch.toLowerCase();
+      data = data.filter(g => (g.judul || '').toLowerCase().includes(q) || (g.deskripsi || '').toLowerCase().includes(q) || (g.kategori || '').toLowerCase().includes(q));
+    }
+    if (resultCount) resultCount.textContent = data.length > 0 ? `Menampilkan ${data.length} kegiatan` : '';
+    if (data.length === 0) { galleryGrid.innerHTML = '<div class="empty-state">🔍 Tidak ada kegiatan yang cocok.</div>'; return; }
+
+    galleryGrid.innerHTML = data.map(g => {
+      const url = g.url || '';
+      if (!isValidUrl(url)) return '';
+      const isVideo = g.jenis === 'video' || g.type === 'video';
+      const thumb = isVideo ? (g.thumbnail || `https://img.youtube.com/vi/${extractYoutubeId(url)}/hqdefault.jpg`) : url;
+      return `<div class="gallery-item" onclick='openLightbox(${JSON.stringify(g).replace(/'/g, "&apos;")})'><div class="gallery-thumb">${isVideo ? `<img src="${thumb}" alt="${g.judul}" loading="lazy" onerror="this.style.display='none';"><div class="video-icon">▶</div>` : `<img src="${url}" alt="${g.judul}" loading="lazy" onerror="this.style.display='none';">`}<span class="gallery-badge">${isVideo ? '🎥 Video' : '📷 Foto'}</span>${g.kategori ? `<span class="gallery-category-badge">${g.kategori}</span>` : ''}</div><div class="gallery-info"><h4>${g.judul}</h4><small>${g.tanggal || ''}</small><p>${(g.deskripsi || '').substring(0, 80)}${g.deskripsi && g.deskripsi.length > 80 ? '...' : ''}</p>${g.kategori ? `<span class="category-tag">🏷️ ${g.kategori}</span>` : ''}</div></div>`;
+    }).filter(item => item).join('');
+  }
+
+  document.querySelectorAll('.gallery-filter .filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.gallery-filter .filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTypeFilter = btn.dataset.filter;
+      renderGaleri();
+    });
+  });
+
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => { currentSearch = e.target.value.trim(); renderGaleri(); });
+  }
+  window.clearSearch = function() { if (searchInput) searchInput.value = ''; currentSearch = ''; renderGaleri(); };
+
+  function extractYoutubeId(url) {
+    if (!url) return '';
+    const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+    return match ? match[1] : '';
+  }
+
+  window.openLightbox = function(item) {
+    const lb = document.getElementById('lightbox');
+    const media = document.getElementById('lightboxMedia');
+    const caption = document.getElementById('lightboxCaption');
+    const url = item.url || '';
+    const isVideo = item.jenis === 'video' || item.type === 'video';
+    
+    if (isVideo) {
+      const ytId = extractYoutubeId(url);
+      if (ytId) media.innerHTML = `<iframe src="https://www.youtube.com/embed/${ytId}?autoplay=1" frameborder="0" allowfullscreen style="width:90vw;height:60vh;max-width:100%;max-height:85vh;border-radius:10px;"></iframe>`;
+      else media.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%;max-height:85vh;border-radius:10px;"></video>`;
+    } else {
+      media.innerHTML = `<img src="${url}" alt="${item.judul}" style="max-width:100%;max-height:85vh;border-radius:10px;">`;
+    }
+    caption.innerHTML = `<h3>${item.judul}</h3>${item.kategori ? `<p style="color:#ffd700;">🏷️ ${item.kategori}</p>` : ''}<p>${item.deskripsi || ''}</p><small>${item.tanggal || ''}</small>`;
+    lb.classList.add('active');
+  };
+
+  window.closeLightbox = function() {
+    document.getElementById('lightbox').classList.remove('active');
+    document.getElementById('lightboxMedia').innerHTML = '';
+  };
+  document.getElementById('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') closeLightbox(); });
+
+} catch (error) {
+  console.error('❌ Error Firebase:', error);
+  document.getElementById('syncIndicator').textContent = '❌ Error';
+  document.getElementById('syncIndicator').style.background = '#ef4444';
+}
+
+// ====== FITUR TAMBAHAN: MOBILE SCROLL FIX ======
+(function() {
+    var SCROLL_THRESHOLD = 15;
+    var touchStartY = 0, touchStartX = 0, isScrolling = false, touchMoved = false, touchStartTime = 0;
+
+    document.addEventListener('touchstart', function(e) {
+        touchStartY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
+        touchStartTime = Date.now();
+        touchMoved = false;
+        isScrolling = false;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function(e) {
+        var deltaY = Math.abs(e.touches[0].clientY - touchStartY);
+        var deltaX = Math.abs(e.touches[0].clientX - touchStartX);
+        if (deltaY > SCROLL_THRESHOLD || deltaX > SCROLL_THRESHOLD) {
+            isScrolling = true;
+            touchMoved = true;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', function(e) {
+        var timeDiff = Date.now() - touchStartTime;
+        if (isScrolling || touchMoved || timeDiff > 400) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+    }, { passive: false });
+
+    document.addEventListener('click', function(e) {
+        if (isScrolling || touchMoved) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+    }, true);
+
+    var scrollTimeout;
+    window.addEventListener('scroll', function() {
+        isScrolling = true;
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(function() { isScrolling = false; touchMoved = false; }, 200);
+    }, { passive: true });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeBeritaModal();
+            closeLightbox();
+        }
+    });
+})();
+// Force width untuk mencegah horizontal scroll
+(function() {
+  function fixMobileOverflow() {
+    if (window.innerWidth <= 768) {
+      document.documentElement.style.overflowX = 'hidden';
+      document.body.style.overflowX = 'hidden';
+      document.body.style.width = '100vw';
+      document.body.style.maxWidth = '100vw';
+    }
+  }
+  
+  // Jalankan saat load dan resize
+  window.addEventListener('load', fixMobileOverflow);
+  window.addEventListener('resize', fixMobileOverflow);
+  
+  // Jalankan setiap kali scroll
+  let scrollTimeout;
+  window.addEventListener('scroll', function() {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(fixMobileOverflow, 100);
+  });
+})();
+</script>
+</body>
+</html>
